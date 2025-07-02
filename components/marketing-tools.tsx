@@ -1,12 +1,12 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { MessageSquare, ImageIcon, Share2 } from "lucide-react"
+import { MessageSquare, ImageIcon, Share2, Download, Copy } from "lucide-react"
 
 export default function MarketingTools() {
   const [posterData, setPosterData] = useState({
@@ -19,6 +19,9 @@ export default function MarketingTools() {
 
   const [whatsappMessage, setWhatsappMessage] = useState("")
   const [socialCaption, setSocialCaption] = useState("")
+
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const posterRef = useRef<HTMLDivElement>(null)
 
   const generateWhatsAppMessage = () => {
     const { businessName, service, special, contact } = posterData
@@ -47,6 +50,75 @@ Tag a friend who needs to know about this! 👇
 #SupportLocal #SMME #SouthAfrica #CommunityFirst #${location.replace(/\s+/g, "")}`
 
     setSocialCaption(caption)
+  }
+
+  const exportAsImage = async () => {
+    if (!posterRef.current) return
+
+    try {
+      // Create canvas
+      const canvas = document.createElement("canvas")
+      const ctx = canvas.getContext("2d")
+      if (!ctx) return
+
+      // Set canvas size
+      canvas.width = 800
+      canvas.height = 600
+
+      // Create gradient background
+      const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height)
+      gradient.addColorStop(0, "#4ade80") // green-400
+      gradient.addColorStop(1, "#fb923c") // orange-400
+      ctx.fillStyle = gradient
+      ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+      // Set text properties
+      ctx.fillStyle = "white"
+      ctx.textAlign = "center"
+
+      // Business name
+      ctx.font = "bold 48px Arial"
+      ctx.fillText(posterData.businessName || "Your Business Name", canvas.width / 2, 120)
+
+      // Service description box
+      ctx.fillStyle = "rgba(255, 255, 255, 0.2)"
+      ctx.fillRect(100, 180, canvas.width - 200, 200)
+
+      // Service text
+      ctx.fillStyle = "white"
+      ctx.font = "24px Arial"
+      const serviceText = posterData.service || "Your services description"
+      ctx.fillText(serviceText, canvas.width / 2, 250)
+
+      // Special offer
+      if (posterData.special) {
+        ctx.fillStyle = "#fbbf24" // yellow-400
+        ctx.fillRect(200, 300, canvas.width - 400, 50)
+        ctx.fillStyle = "black"
+        ctx.font = "bold 20px Arial"
+        ctx.fillText(`🎉 ${posterData.special}`, canvas.width / 2, 330)
+      }
+
+      // Location and contact
+      ctx.fillStyle = "white"
+      ctx.font = "20px Arial"
+      ctx.fillText(`📍 ${posterData.location || "Your Location"}`, canvas.width / 2, 450)
+      ctx.fillText(`📱 ${posterData.contact || "Your Contact"}`, canvas.width / 2, 480)
+
+      // Hashtags
+      ctx.font = "16px Arial"
+      ctx.fillStyle = "rgba(255, 255, 255, 0.9)"
+      ctx.fillText("#SupportLocal #Mzansi 🇿🇦", canvas.width / 2, 550)
+
+      // Download the image
+      const link = document.createElement("a")
+      link.download = `${posterData.businessName || "business"}-poster.png`
+      link.href = canvas.toDataURL()
+      link.click()
+    } catch (error) {
+      console.error("Error exporting image:", error)
+      alert("Error exporting image. Please try again.")
+    }
   }
 
   return (
@@ -132,10 +204,21 @@ Tag a friend who needs to know about this! 👇
 
             <Card>
               <CardHeader>
-                <CardTitle>Poster Preview</CardTitle>
+                <CardTitle className="flex items-center justify-between">
+                  Poster Preview
+                  <div className="flex gap-2">
+                    <Button onClick={exportAsImage} size="sm" variant="outline">
+                      <Download className="h-4 w-4 mr-2" />
+                      Export Image
+                    </Button>
+                  </div>
+                </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="bg-gradient-to-br from-green-400 to-orange-400 rounded-lg p-6 text-white text-center min-h-[400px] flex flex-col justify-center">
+                <div
+                  ref={posterRef}
+                  className="bg-gradient-to-br from-green-400 to-orange-400 rounded-lg p-6 text-white text-center min-h-[400px] flex flex-col justify-center"
+                >
                   <h2 className="text-3xl font-bold mb-4">{posterData.businessName || "Your Business Name"}</h2>
 
                   <div className="bg-white/20 rounded-lg p-4 mb-4">
@@ -156,6 +239,7 @@ Tag a friend who needs to know about this! 👇
 
                   <div className="mt-4 text-sm opacity-90">#SupportLocal #Mzansi 🇿🇦</div>
                 </div>
+                <canvas ref={canvasRef} style={{ display: "none" }} />
               </CardContent>
             </Card>
           </div>
@@ -178,12 +262,14 @@ Tag a friend who needs to know about this! 👇
                   </div>
                   <div className="flex gap-2 mt-4">
                     <Button onClick={() => navigator.clipboard.writeText(whatsappMessage)} variant="outline">
+                      <Copy className="h-4 w-4 mr-2" />
                       Copy Message
                     </Button>
                     <Button
                       onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(whatsappMessage)}`)}
                       className="bg-green-600 hover:bg-green-700"
                     >
+                      <MessageSquare className="h-4 w-4 mr-2" />
                       Share on WhatsApp
                     </Button>
                   </div>
