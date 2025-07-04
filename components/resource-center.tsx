@@ -11,7 +11,17 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { BookOpen, DollarSign, Users, Lightbulb, ExternalLink, Download, Calendar, Clock } from "lucide-react"
+import {
+  BookOpen,
+  DollarSign,
+  Users,
+  Lightbulb,
+  ExternalLink,
+  Download,
+  Calendar,
+  Clock,
+  CheckCircle,
+} from "lucide-react"
 import { useState } from "react"
 
 const fundingOptions = [
@@ -84,6 +94,8 @@ const learningResources = [
 function BookingForm() {
   const [isOpen, setIsOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitStatus, setSubmitStatus] = useState<"idle" | "success" | "error">("idle")
+  const [errorMessage, setErrorMessage] = useState("")
   const [formData, setFormData] = useState({
     fullName: "",
     email: "",
@@ -99,13 +111,55 @@ function BookingForm() {
 
   const handleInputChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
+    // Clear any previous error when user starts typing
+    if (submitStatus === "error") {
+      setSubmitStatus("idle")
+      setErrorMessage("")
+    }
+  }
+
+  const validateForm = () => {
+    const required = [
+      "fullName",
+      "email",
+      "phone",
+      "businessType",
+      "preferredDate",
+      "preferredTime",
+      "topics",
+      "experience",
+    ]
+    for (const field of required) {
+      if (!formData[field as keyof typeof formData]) {
+        setErrorMessage(`Please fill in the ${field.replace(/([A-Z])/g, " $1").toLowerCase()} field`)
+        return false
+      }
+    }
+
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(formData.email)) {
+      setErrorMessage("Please enter a valid email address")
+      return false
+    }
+
+    return true
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    if (!validateForm()) {
+      setSubmitStatus("error")
+      return
+    }
+
     setIsSubmitting(true)
+    setSubmitStatus("idle")
 
     try {
+      console.log("Submitting booking data:", formData)
+
       const response = await fetch("/api/mentoring/book", {
         method: "POST",
         headers: {
@@ -114,37 +168,71 @@ function BookingForm() {
         body: JSON.stringify(formData),
       })
 
+      const responseData = await response.json()
+      console.log("API Response:", responseData)
+
       if (response.ok) {
-        alert("Booking request submitted successfully! We will contact you within 24 hours to confirm your session.")
-        setFormData({
-          fullName: "",
-          email: "",
-          phone: "",
-          businessName: "",
-          businessType: "",
-          preferredDate: "",
-          preferredTime: "",
-          topics: "",
-          experience: "",
-          challenges: "",
-        })
-        setIsOpen(false)
+        setSubmitStatus("success")
+        console.log("Booking submitted successfully:", responseData.booking)
+
+        // Reset form after successful submission
+        setTimeout(() => {
+          setFormData({
+            fullName: "",
+            email: "",
+            phone: "",
+            businessName: "",
+            businessType: "",
+            preferredDate: "",
+            preferredTime: "",
+            topics: "",
+            experience: "",
+            challenges: "",
+          })
+          setIsOpen(false)
+          setSubmitStatus("idle")
+        }, 2000)
       } else {
-        const errorData = await response.json()
-        throw new Error(errorData.error || "Failed to submit booking")
+        throw new Error(responseData.error || "Failed to submit booking")
       }
     } catch (error) {
-      console.error("Booking error:", error)
-      alert("Error submitting booking. Please try again or contact us directly.")
+      console.error("Booking submission error:", error)
+      setSubmitStatus("error")
+      setErrorMessage(error instanceof Error ? error.message : "Failed to submit booking. Please try again.")
     } finally {
       setIsSubmitting(false)
     }
   }
 
+  const resetForm = () => {
+    setFormData({
+      fullName: "",
+      email: "",
+      phone: "",
+      businessName: "",
+      businessType: "",
+      preferredDate: "",
+      preferredTime: "",
+      topics: "",
+      experience: "",
+      challenges: "",
+    })
+    setSubmitStatus("idle")
+    setErrorMessage("")
+  }
+
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        setIsOpen(open)
+        if (!open) {
+          resetForm()
+        }
+      }}
+    >
       <DialogTrigger asChild>
-        <Button variant="outline" className="border-blue-300 bg-transparent">
+        <Button variant="outline" className="border-blue-300 bg-transparent hover:bg-blue-50">
           <Calendar className="h-4 w-4 mr-2" />
           Book Session
         </Button>
@@ -157,165 +245,207 @@ function BookingForm() {
           </DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="fullName">Full Name *</Label>
-              <Input
-                id="fullName"
-                value={formData.fullName}
-                onChange={(e) => handleInputChange("fullName", e.target.value)}
-                placeholder="Enter your full name"
-                required
-              />
-            </div>
-            <div>
-              <Label htmlFor="email">Email Address *</Label>
-              <Input
-                id="email"
-                type="email"
-                value={formData.email}
-                onChange={(e) => handleInputChange("email", e.target.value)}
-                placeholder="your.email@example.com"
-                required
-              />
-            </div>
+        {submitStatus === "success" ? (
+          <div className="text-center py-8">
+            <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
+            <h3 className="text-xl font-semibold text-green-800 mb-2">Booking Submitted Successfully!</h3>
+            <p className="text-green-600 mb-4">
+              We will contact you within 24 hours to confirm your mentoring session.
+            </p>
+            <p className="text-sm text-gray-600">Check your email for confirmation details.</p>
           </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {submitStatus === "error" && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                <p className="text-red-800 text-sm">{errorMessage}</p>
+              </div>
+            )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="fullName">Full Name *</Label>
+                <Input
+                  id="fullName"
+                  value={formData.fullName}
+                  onChange={(e) => handleInputChange("fullName", e.target.value)}
+                  placeholder="Enter your full name"
+                  required
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label htmlFor="email">Email Address *</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => handleInputChange("email", e.target.value)}
+                  placeholder="your.email@example.com"
+                  required
+                  className="mt-1"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="phone">Phone Number *</Label>
+                <Input
+                  id="phone"
+                  value={formData.phone}
+                  onChange={(e) => handleInputChange("phone", e.target.value)}
+                  placeholder="+27 82 123 4567"
+                  required
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label htmlFor="businessName">Business Name</Label>
+                <Input
+                  id="businessName"
+                  value={formData.businessName}
+                  onChange={(e) => handleInputChange("businessName", e.target.value)}
+                  placeholder="Your business name (if applicable)"
+                  className="mt-1"
+                />
+              </div>
+            </div>
+
             <div>
-              <Label htmlFor="phone">Phone Number *</Label>
-              <Input
-                id="phone"
-                value={formData.phone}
-                onChange={(e) => handleInputChange("phone", e.target.value)}
-                placeholder="+27 82 123 4567"
+              <Label htmlFor="businessType">Business Type/Industry *</Label>
+              <Select
+                value={formData.businessType}
+                onValueChange={(value) => handleInputChange("businessType", value)}
                 required
-              />
-            </div>
-            <div>
-              <Label htmlFor="businessName">Business Name</Label>
-              <Input
-                id="businessName"
-                value={formData.businessName}
-                onChange={(e) => handleInputChange("businessName", e.target.value)}
-                placeholder="Your business name (if applicable)"
-              />
-            </div>
-          </div>
-
-          <div>
-            <Label htmlFor="businessType">Business Type/Industry *</Label>
-            <Select onValueChange={(value) => handleInputChange("businessType", value)} required>
-              <SelectTrigger>
-                <SelectValue placeholder="Select your business type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="retail">Retail/Shop</SelectItem>
-                <SelectItem value="food">Food & Beverage</SelectItem>
-                <SelectItem value="services">Services</SelectItem>
-                <SelectItem value="manufacturing">Manufacturing</SelectItem>
-                <SelectItem value="technology">Technology</SelectItem>
-                <SelectItem value="agriculture">Agriculture</SelectItem>
-                <SelectItem value="construction">Construction</SelectItem>
-                <SelectItem value="transport">Transport/Logistics</SelectItem>
-                <SelectItem value="beauty">Beauty/Personal Care</SelectItem>
-                <SelectItem value="other">Other</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="preferredDate">Preferred Date *</Label>
-              <Input
-                id="preferredDate"
-                type="date"
-                value={formData.preferredDate}
-                onChange={(e) => handleInputChange("preferredDate", e.target.value)}
-                min={new Date().toISOString().split("T")[0]}
-                required
-              />
-            </div>
-            <div>
-              <Label htmlFor="preferredTime">Preferred Time *</Label>
-              <Select onValueChange={(value) => handleInputChange("preferredTime", value)} required>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select time slot" />
+              >
+                <SelectTrigger className="mt-1">
+                  <SelectValue placeholder="Select your business type" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="09:00">09:00 - 09:30</SelectItem>
-                  <SelectItem value="10:00">10:00 - 10:30</SelectItem>
-                  <SelectItem value="11:00">11:00 - 11:30</SelectItem>
-                  <SelectItem value="14:00">14:00 - 14:30</SelectItem>
-                  <SelectItem value="15:00">15:00 - 15:30</SelectItem>
-                  <SelectItem value="16:00">16:00 - 16:30</SelectItem>
+                  <SelectItem value="retail">Retail/Shop</SelectItem>
+                  <SelectItem value="food">Food & Beverage</SelectItem>
+                  <SelectItem value="services">Services</SelectItem>
+                  <SelectItem value="manufacturing">Manufacturing</SelectItem>
+                  <SelectItem value="technology">Technology</SelectItem>
+                  <SelectItem value="agriculture">Agriculture</SelectItem>
+                  <SelectItem value="construction">Construction</SelectItem>
+                  <SelectItem value="transport">Transport/Logistics</SelectItem>
+                  <SelectItem value="beauty">Beauty/Personal Care</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-          </div>
 
-          <div>
-            <Label htmlFor="experience">Business Experience Level *</Label>
-            <Select onValueChange={(value) => handleInputChange("experience", value)} required>
-              <SelectTrigger>
-                <SelectValue placeholder="Select your experience level" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="idea">Just have an idea</SelectItem>
-                <SelectItem value="planning">Planning to start</SelectItem>
-                <SelectItem value="new">New business (0-1 years)</SelectItem>
-                <SelectItem value="growing">Growing business (1-3 years)</SelectItem>
-                <SelectItem value="established">Established business (3+ years)</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="preferredDate">Preferred Date *</Label>
+                <Input
+                  id="preferredDate"
+                  type="date"
+                  value={formData.preferredDate}
+                  onChange={(e) => handleInputChange("preferredDate", e.target.value)}
+                  min={new Date().toISOString().split("T")[0]}
+                  required
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label htmlFor="preferredTime">Preferred Time *</Label>
+                <Select
+                  value={formData.preferredTime}
+                  onValueChange={(value) => handleInputChange("preferredTime", value)}
+                  required
+                >
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="Select time slot" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="09:00">09:00 - 09:30</SelectItem>
+                    <SelectItem value="10:00">10:00 - 10:30</SelectItem>
+                    <SelectItem value="11:00">11:00 - 11:30</SelectItem>
+                    <SelectItem value="14:00">14:00 - 14:30</SelectItem>
+                    <SelectItem value="15:00">15:00 - 15:30</SelectItem>
+                    <SelectItem value="16:00">16:00 - 16:30</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
 
-          <div>
-            <Label htmlFor="topics">Topics You'd Like to Discuss *</Label>
-            <Textarea
-              id="topics"
-              value={formData.topics}
-              onChange={(e) => handleInputChange("topics", e.target.value)}
-              placeholder="e.g., Business plan, funding, marketing, financial management, legal requirements..."
-              rows={3}
-              required
-            />
-          </div>
+            <div>
+              <Label htmlFor="experience">Business Experience Level *</Label>
+              <Select
+                value={formData.experience}
+                onValueChange={(value) => handleInputChange("experience", value)}
+                required
+              >
+                <SelectTrigger className="mt-1">
+                  <SelectValue placeholder="Select your experience level" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="idea">Just have an idea</SelectItem>
+                  <SelectItem value="planning">Planning to start</SelectItem>
+                  <SelectItem value="new">New business (0-1 years)</SelectItem>
+                  <SelectItem value="growing">Growing business (1-3 years)</SelectItem>
+                  <SelectItem value="established">Established business (3+ years)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-          <div>
-            <Label htmlFor="challenges">Current Business Challenges</Label>
-            <Textarea
-              id="challenges"
-              value={formData.challenges}
-              onChange={(e) => handleInputChange("challenges", e.target.value)}
-              placeholder="What specific challenges are you facing? (Optional)"
-              rows={3}
-            />
-          </div>
+            <div>
+              <Label htmlFor="topics">Topics You'd Like to Discuss *</Label>
+              <Textarea
+                id="topics"
+                value={formData.topics}
+                onChange={(e) => handleInputChange("topics", e.target.value)}
+                placeholder="e.g., Business plan, funding, marketing, financial management, legal requirements..."
+                rows={3}
+                required
+                className="mt-1"
+              />
+            </div>
 
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <h4 className="font-semibold text-blue-800 mb-2 flex items-center gap-2">
-              <Clock className="h-4 w-4" />
-              Session Details:
-            </h4>
-            <ul className="text-sm text-blue-700 space-y-1">
-              <li>• Duration: 30 minutes</li>
-              <li>• Format: Video call (Google Meet/Zoom)</li>
-              <li>• Cost: Completely FREE</li>
-              <li>• Follow-up: Session notes and action items provided</li>
-            </ul>
-          </div>
+            <div>
+              <Label htmlFor="challenges">Current Business Challenges</Label>
+              <Textarea
+                id="challenges"
+                value={formData.challenges}
+                onChange={(e) => handleInputChange("challenges", e.target.value)}
+                placeholder="What specific challenges are you facing? (Optional)"
+                rows={3}
+                className="mt-1"
+              />
+            </div>
 
-          <div className="flex gap-3 pt-4">
-            <Button type="button" variant="outline" onClick={() => setIsOpen(false)} className="flex-1">
-              Cancel
-            </Button>
-            <Button type="submit" disabled={isSubmitting} className="flex-1 bg-blue-600 hover:bg-blue-700">
-              {isSubmitting ? "Submitting..." : "Book Session"}
-            </Button>
-          </div>
-        </form>
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <h4 className="font-semibold text-blue-800 mb-2 flex items-center gap-2">
+                <Clock className="h-4 w-4" />
+                Session Details:
+              </h4>
+              <ul className="text-sm text-blue-700 space-y-1">
+                <li>• Duration: 30 minutes</li>
+                <li>• Format: Video call (Google Meet/Zoom)</li>
+                <li>• Cost: Completely FREE</li>
+                <li>• Follow-up: Session notes and action items provided</li>
+              </ul>
+            </div>
+
+            <div className="flex gap-3 pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsOpen(false)}
+                className="flex-1"
+                disabled={isSubmitting}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isSubmitting} className="flex-1 bg-blue-600 hover:bg-blue-700">
+                {isSubmitting ? "Submitting..." : "Book Session"}
+              </Button>
+            </div>
+          </form>
+        )}
       </DialogContent>
     </Dialog>
   )

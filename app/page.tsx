@@ -1,9 +1,11 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import Link from "next/link"
 import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { MessageSquare, Calculator, FileText, Megaphone, BookOpen, Users } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { MessageSquare, Calculator, FileText, Megaphone, BookOpen, Users, LogIn, UserPlus } from "lucide-react"
 import ChatInterface from "@/components/chat-interface"
 import BusinessCalculator from "@/components/business-calculator"
 import MarketingTools from "@/components/marketing-tools"
@@ -12,12 +14,66 @@ import ComplianceGuide from "@/components/compliance-guide"
 
 export default function SMMEAssistant() {
   const [activeTab, setActiveTab] = useState("chat")
+  const [user, setUser] = useState<any>(null)
+
+  useEffect(() => {
+    // Check if user is logged in
+    const userData = localStorage.getItem("user")
+    if (userData) {
+      try {
+        setUser(JSON.parse(userData))
+      } catch (error) {
+        console.error("Error parsing user data:", error)
+        localStorage.removeItem("user")
+      }
+    }
+  }, [])
+
+  const handleLogout = () => {
+    localStorage.removeItem("user")
+    setUser(null)
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-orange-50">
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className="text-center mb-8">
+          <div className="flex justify-between items-center mb-4">
+            <div></div>
+            <div className="flex items-center space-x-4">
+              {user ? (
+                <div className="flex items-center space-x-4">
+                  <span className="text-sm text-gray-600">Welcome, {user.name}</span>
+                  <Link
+                    href={user.userType === "manufacturer" ? "/dashboard/manufacturer" : "/dashboard/supplier"}
+                    className="text-green-600 hover:text-green-700 text-sm font-medium"
+                  >
+                    Go to Dashboard
+                  </Link>
+                  <Button variant="outline" size="sm" onClick={handleLogout}>
+                    Logout
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center space-x-2">
+                  <Link href="/auth/login">
+                    <Button variant="outline" size="sm">
+                      <LogIn className="h-4 w-4 mr-2" />
+                      Login
+                    </Button>
+                  </Link>
+                  <Link href="/auth/register">
+                    <Button size="sm">
+                      <UserPlus className="h-4 w-4 mr-2" />
+                      Register
+                    </Button>
+                  </Link>
+                </div>
+              )}
+            </div>
+          </div>
+
           <h1 className="text-4xl font-bold text-green-800 mb-2">Mzansi Business Buddy 🇿🇦</h1>
           <p className="text-lg text-gray-600 max-w-2xl mx-auto">
             Your smart business assistant for South African SMMEs. Get help in English, isiZulu, isiXhosa, or Afrikaans!
